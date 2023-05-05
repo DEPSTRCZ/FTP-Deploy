@@ -1,0 +1,50 @@
+name: 'FTP Deploy'
+author: 'DEPSTRCZ'
+description: 'Github action that allows you to deploy yout ptojects through (FTP, SFTP, FTPS)'
+branding:
+  color: blue
+  icon: upload-cloud
+inputs:
+  sftp:
+    description: 'Use SFTP instead of FTP'
+    required: false
+    default: false
+  host:
+    description: 'FTP host address Example:  192.168.1.40 or sftp.your-host.com'
+    required: true
+  port:
+    description: 'FTP port'
+    required: false
+    default: 21
+  username:
+    required: true
+    description: 'Ftp username'
+  password:
+    required: true
+    description: 'Ftp password'
+  remote_folder:
+    required: false
+    description: 'The remote folder location of your FTP server'
+  local_folder:
+    required: false
+    default: dist
+    description: 'The local folder to upload from'
+  cleanup:
+    required: false
+    default: false
+    description: 'Remove existing files inside FTP remote folder'
+  include:
+    required: false
+    default: false
+    description: 'includes'
+  exclude:
+    required: false
+    default: false
+    description: 'exclude'
+  passive:
+    required: false
+    default: false
+    description: 'passive'
+runs:
+  using: 'node18'
+  main: 'dist/index.js'
