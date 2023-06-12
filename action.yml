@@ -24,22 +24,23 @@ inputs:
     description: 'Ftp password'
   remote_folder:
     required: false
+    default: ./
     description: 'The remote folder location of your FTP server'
   local_folder:
     required: false
-    default: dist
+    default: ./
     description: 'The local folder to upload from'
-  cleanup:
+  delete_remote:
     required: false
     default: false
-    description: 'Remove existing files inside FTP remote folder'
+    description: 'Delete all files in remote folder'
   include:
     required: false
-    default: false
+    default: ['*', '**/*']
     description: 'includes'
   exclude:
     required: false
-    default: false
+    default: []
     description: 'exclude'
   passive:
     required: false
