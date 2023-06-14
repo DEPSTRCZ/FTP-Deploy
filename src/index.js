@@ -1,20 +1,17 @@
 
 import { info, setFailed, getInput } from '@actions/core';
-import github from '@actions/github';
 import FtpDeployer from "ftp-deploy";
-import cliProgress from "cli-progress";
+import chalk from 'chalk';
 
 const Deployment = new FtpDeployer();
 
 info('Deploying...');
 
 async function generateProgressBar(progress) {
-    const completed = Math.round(50 * progress); // Number of completed characters
-    const remaining = 50 - completed; // Number of remaining characters
-  
-    const progressBar = '='.repeat(completed) + '>'.repeat(progress > 0 && progress < 1 ? 1 : 0) + ' '.repeat(remaining); // Generate the progress bar string
+    const completed = Math.round(50 * progress); 
+    const remaining = 50 - completed; 
+    const progressBar = '='.repeat(completed) + '>'.repeat(progress > 0 && progress < 1 ? 1 : 0) + ' '.repeat(remaining);
     return progressBar;
-
 }
 try {
     let progress = 0
@@ -32,30 +29,22 @@ try {
         forcePasv: JSON.parse(getInput('passive')) || true // Passive mode is forced (EPSV command is not sent)
     })
 
-    /*Deployment.on("uploading", function (data) {
-    //if (bar1.value === 0) bar1.start(data.totalFilesCount, 0);
-    bar1.update(data.transferredFileCount);
-    });*/
     Deployment.on("uploaded", async function (data) {
-        console.log(data.totalFilesCount,data.transferredFileCount,data.filename,progress)
         progress += 1 / data.totalFilesCount
         const progressBar = await generateProgressBar(progress);
         const procentage = Math.round((data.transferredFileCount / data.totalFilesCount) * 100)
-        console.log(`File: ${data.filename} [${progressBar}] ${procentage}%`)
+
+        info("\x1b[34m"+`File: ${data.filename} \n[${progressBar}] ${procentage}%`+"\x1b[0m")
         if (data.transferredFileCount === data.totalFilesCount) {
-            console.log("S/FTP Upload has been done!")
+            info("\x1b[32m"+"S/FTP file deployment completed!","\x1b[0m")
         }
     });
+
     Deployment.on("upload-error", function (data) {
-        console.log(data.err); // data will also include filename, relativePath, and other goodies
+        info("\x1b[31m"+`There has been an error while uploading! \nFile: ${data.filename}\nError: ${data.err}`+"\x1b[0m")
+        setFailed("Upload error")
     });
-    console.log("xd")
+
 } catch (error) {
     setFailed(error.message);
 }
-console.log("bef")
-
-
-
-
-console.log("aft")
