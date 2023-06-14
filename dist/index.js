@@ -5748,6 +5748,24 @@ exports.request = request;
 
 /***/ }),
 
+/***/ 5063:
+/***/ ((module) => {
+
+"use strict";
+
+
+module.exports = ({onlyFirst = false} = {}) => {
+	const pattern = [
+		'[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)',
+		'(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))'
+	].join('|');
+
+	return new RegExp(pattern, onlyFirst ? undefined : 'g');
+};
+
+
+/***/ }),
+
 /***/ 9348:
 /***/ ((module) => {
 
@@ -13532,6 +13550,1279 @@ module.exports = bufferFrom
 
 /***/ }),
 
+/***/ 7348:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const _SingleBar = __nccwpck_require__(7561);
+const _MultiBar = __nccwpck_require__(2013);
+const _Presets = __nccwpck_require__(5040);
+const _Formatter = __nccwpck_require__(8115);
+const _defaultFormatValue = __nccwpck_require__(6404);
+const _defaultFormatBar = __nccwpck_require__(6174);
+const _defaultFormatTime = __nccwpck_require__(3900);
+
+// sub-module access
+module.exports = {
+    Bar: _SingleBar,
+    SingleBar: _SingleBar,
+    MultiBar: _MultiBar,
+    Presets: _Presets,
+    Format: {
+        Formatter: _Formatter,
+        BarFormat: _defaultFormatBar,
+        ValueFormat: _defaultFormatValue,
+        TimeFormat: _defaultFormatTime
+    }
+};
+
+/***/ }),
+
+/***/ 7954:
+/***/ ((module) => {
+
+
+// ETA calculation
+class ETA{
+
+    constructor(length, initTime, initValue){
+        // size of eta buffer
+        this.etaBufferLength = length || 100;
+
+        // eta buffer with initial values
+        this.valueBuffer = [initValue];
+        this.timeBuffer = [initTime];
+
+        // eta time value
+        this.eta = '0';
+    }
+
+    // add new values to calculation buffer
+    update(time, value, total){
+        this.valueBuffer.push(value);
+        this.timeBuffer.push(time);
+
+        // trigger recalculation
+        this.calculate(total-value);
+    }
+
+    // fetch estimated time
+    getTime(){
+        return this.eta;
+    }
+
+    // eta calculation - request number of remaining events
+    calculate(remaining){
+        // get number of samples in eta buffer
+        const currentBufferSize = this.valueBuffer.length;
+        const buffer = Math.min(this.etaBufferLength, currentBufferSize);
+
+        const v_diff = this.valueBuffer[currentBufferSize - 1] - this.valueBuffer[currentBufferSize - buffer];
+        const t_diff = this.timeBuffer[currentBufferSize - 1] - this.timeBuffer[currentBufferSize - buffer];
+
+        // get progress per ms
+        const vt_rate = v_diff/t_diff;
+
+        // strip past elements
+        this.valueBuffer = this.valueBuffer.slice(-this.etaBufferLength);
+        this.timeBuffer  = this.timeBuffer.slice(-this.etaBufferLength);
+
+        // eq: vt_rate *x = total
+        const eta = Math.ceil(remaining/vt_rate/1000);
+
+        // check values
+        if (isNaN(eta)){
+            this.eta = 'NULL';
+
+        // +/- Infinity --- NaN already handled
+        }else if (!isFinite(eta)){
+            this.eta = 'INF';
+
+        // > 10M s ? - set upper display limit ~115days (1e7/60/60/24)
+        }else if (eta > 1e7){
+            this.eta = 'INF';
+
+        // negative ?
+        }else if (eta < 0){
+            this.eta = 0;
+
+        }else{
+            // assign
+            this.eta = eta;
+        }
+    }
+}
+
+module.exports = ETA;
+
+/***/ }),
+
+/***/ 6174:
+/***/ ((module) => {
+
+// format bar
+module.exports = function formatBar(progress, options){
+    // calculate barsize
+    const completeSize = Math.round(progress*options.barsize);
+    const incompleteSize = options.barsize-completeSize;
+
+   // generate bar string by stripping the pre-rendered strings
+   return   options.barCompleteString.substr(0, completeSize) +
+            options.barGlue +
+            options.barIncompleteString.substr(0, incompleteSize);
+}
+
+/***/ }),
+
+/***/ 3900:
+/***/ ((module) => {
+
+// default time format
+
+// format a number of seconds into hours and minutes as appropriate
+module.exports = function formatTime(t, options, roundToMultipleOf){
+    function round(input) {
+        if (roundToMultipleOf) {
+            return roundToMultipleOf * Math.round(input / roundToMultipleOf);
+        } else {
+            return input
+        }
+    }
+
+    // leading zero padding
+    function autopadding(v){
+        return (options.autopaddingChar + v).slice(-2);
+    }
+
+    // > 1h ?
+    if (t > 3600) {
+        return autopadding(Math.floor(t / 3600)) + 'h' + autopadding(round((t % 3600) / 60)) + 'm';
+
+    // > 60s ?
+    } else if (t > 60) {
+        return autopadding(Math.floor(t / 60)) + 'm' + autopadding(round((t % 60))) + 's';
+
+    // > 10s ?
+    } else if (t > 10) {
+        return autopadding(round(t)) + 's';
+
+    // default: don't apply round to multiple
+    }else{
+        return autopadding(t) + 's';
+    }
+}
+
+/***/ }),
+
+/***/ 6404:
+/***/ ((module) => {
+
+// default value format (apply autopadding)
+
+// format valueset
+module.exports = function formatValue(v, options, type){
+    // no autopadding ? passthrough
+    if (options.autopadding !== true){
+        return v;
+    }
+
+    // padding
+    function autopadding(value, length){
+        return (options.autopaddingChar + value).slice(-length);
+    }
+
+    switch (type){
+        case 'percentage':
+            return autopadding(v, 3);
+
+        default:
+            return v;
+    }
+}
+
+/***/ }),
+
+/***/ 8115:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const _stringWidth = __nccwpck_require__(2577);
+const _defaultFormatValue = __nccwpck_require__(6404);
+const _defaultFormatBar = __nccwpck_require__(6174);
+const _defaultFormatTime = __nccwpck_require__(3900);
+
+// generic formatter
+module.exports = function defaultFormatter(options, params, payload){
+
+    // copy format string
+    let s = options.format;
+
+    // custom time format set ?
+    const formatTime = options.formatTime || _defaultFormatTime;
+    
+    // custom value format set ?
+    const formatValue = options.formatValue || _defaultFormatValue;
+
+    // custom bar format set ?
+    const formatBar = options.formatBar || _defaultFormatBar;
+
+    // calculate progress in percent
+    const percentage =  Math.floor(params.progress*100) + '';
+
+    // bar stopped and stopTime set ?
+    const stopTime = params.stopTime || Date.now();
+
+    // calculate elapsed time
+    const elapsedTime = Math.round((stopTime - params.startTime)/1000);
+
+    // merges data from payload and calculated
+    const context = Object.assign({}, payload, {
+        bar:                    formatBar(params.progress, options),
+
+        percentage:             formatValue(percentage, options, 'percentage'),
+        total:                  formatValue(params.total, options, 'total'),
+        value:                  formatValue(params.value, options, 'value'),
+
+        eta:                    formatValue(params.eta, options, 'eta'),
+        eta_formatted:          formatTime(params.eta, options, 5),
+        
+        duration:               formatValue(elapsedTime, options, 'duration'),
+        duration_formatted:     formatTime(elapsedTime, options, 1)
+    });
+
+    // assign placeholder tokens
+    s = s.replace(/\{(\w+)\}/g, function(match, key){
+        // key exists within payload/context
+        if (typeof context[key] !== 'undefined') {
+            return context[key];
+        }
+
+        // no changes to unknown values
+        return match;
+    });
+
+    // calculate available whitespace (2 characters margin of error)
+    const fullMargin = Math.max(0, params.maxWidth - _stringWidth(s) -2);
+    const halfMargin = Math.floor(fullMargin / 2);
+
+    // distribute available whitespace according to position
+    switch (options.align) {
+
+        // fill start-of-line with whitespaces
+        case 'right':
+            s = (fullMargin > 0) ? ' '.repeat(fullMargin) + s : s;
+            break;
+
+        // distribute whitespaces to left+right
+        case 'center':
+            s = (halfMargin > 0) ? ' '.repeat(halfMargin) + s : s;
+            break;
+
+        // default: left align, no additional whitespaces
+        case 'left':
+        default:
+            break;
+    }
+
+    return s;
+}
+
+
+/***/ }),
+
+/***/ 3455:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const _ETA = __nccwpck_require__(7954);
+const _Terminal = __nccwpck_require__(4411);
+const _formatter = __nccwpck_require__(8115);
+const _options = __nccwpck_require__(8322);
+const _EventEmitter = __nccwpck_require__(2361);
+
+// Progress-Bar constructor
+module.exports = class GenericBar extends _EventEmitter{
+
+    constructor(options){
+        super();
+
+        // store options and assign derived ones (instance specific)
+        this.options = _options.assignDerivedOptions(options);
+
+        // store terminal instance
+        this.terminal = (this.options.terminal) ? this.options.terminal : new _Terminal(this.options.stream);
+
+        // the current bar value
+        this.value = 0;
+
+        // bar start value (used for progress calculation)
+        this.startValue = 0;
+
+        // the end value of the bar
+        this.total = 100;
+
+        // last drawn string - only render on change!
+        this.lastDrawnString = null;
+
+        // start time (used for eta calculation)
+        this.startTime = null;
+
+        // stop time (used for duration calculation)
+        this.stopTime = null;
+
+        // last update time
+        this.lastRedraw = Date.now();
+
+        // default eta calculator (will be re-create on start)
+        this.eta = new _ETA(this.options.etaBufferLength, 0, 0);
+
+        // payload data
+        this.payload = {};
+
+        // progress bar active ?
+        this.isActive = false;
+
+        // use default formatter or custom one ?
+        this.formatter = (typeof this.options.format === 'function') ? this.options.format : _formatter;
+    }
+
+    // internal render function
+    render(forceRendering=false){
+
+        // formatter params
+        const params = {
+            progress: this.getProgress(),
+            eta: this.eta.getTime(),
+            startTime: this.startTime,
+            stopTime: this.stopTime,
+            total: this.total,
+            value: this.value,
+            maxWidth: this.terminal.getWidth()
+        };
+
+        // automatic eta update ? (long running processes)
+        if (this.options.etaAsynchronousUpdate){
+            this.updateETA();
+        }
+
+        // format string
+        const s = this.formatter(this.options, params, this.payload);
+
+        const forceRedraw = forceRendering || this.options.forceRedraw
+            // force redraw in notty-mode!
+            || (this.options.noTTYOutput && !this.terminal.isTTY());
+
+        // string changed ? only trigger redraw on change!
+        if (forceRedraw || this.lastDrawnString != s){
+            // trigger event
+            this.emit('redraw-pre');
+
+            // set cursor to start of line
+            this.terminal.cursorTo(0, null);
+
+            // write output
+            this.terminal.write(s);
+
+            // clear to the right from cursor
+            this.terminal.clearRight();
+
+            // store string
+            this.lastDrawnString = s;
+
+            // set last redraw time
+            this.lastRedraw = Date.now();
+
+            // trigger event
+            this.emit('redraw-post');
+        }
+    }
+
+    // start the progress bar
+    start(total, startValue, payload){
+        // set initial values
+        this.value = startValue || 0;
+        this.total = (typeof total !== 'undefined' && total >= 0) ? total : 100;
+
+        // set start value for progress calculation
+        this.startValue = (startValue || 0);
+
+        // store payload (optional)
+        this.payload = payload || {};
+
+        // store start time for duration+eta calculation
+        this.startTime = Date.now();
+
+        // reset stop time for 're-start' scenario (used for duration calculation)
+        this.stopTime = null;
+
+        // reset string line buffer (redraw detection)
+        this.lastDrawnString = '';
+
+        // initialize eta buffer
+        this.eta = new _ETA(this.options.etaBufferLength, this.startTime, this.value);
+
+        // set flag
+        this.isActive = true;
+
+        // start event
+        this.emit('start', total, startValue);
+    }
+
+    // stop the bar
+    stop(){
+        // set flag
+        this.isActive = false;
+        
+        // store stop timestamp to get total duration
+        this.stopTime = Date.now();
+
+        // stop event
+        this.emit('stop', this.total, this.value);
+    }
+
+    // update the bar value
+    // update(value, payload)
+    // update(payload)
+    update(arg0, arg1 = {}){
+        // value set ?
+        // update(value, [payload]);
+        if (typeof arg0 === 'number') {
+            // update value
+            this.value = arg0;
+
+            // add new value; recalculate eta
+            this.eta.update(Date.now(), arg0, this.total);
+        }
+
+        // extract payload
+        // update(value, payload)
+        // update(payload)
+        const payloadData = ((typeof arg0 === 'object') ? arg0 : arg1) || {};
+
+        // update event (before stop() is called)
+        this.emit('update', this.total, this.value);
+
+        // merge payload
+        for (const key in payloadData){
+            this.payload[key] = payloadData[key];
+        }
+
+        // limit reached ? autostop set ?
+        if (this.value >= this.getTotal() && this.options.stopOnComplete) {
+            this.stop();
+        }
+    }
+
+    // calculate the actual progress value
+    getProgress(){
+        // calculate the normalized current progress
+        let progress = (this.value/this.total);
+
+        // use relative progress calculation ? range between startValue and total is then used as 100%
+        // startValue (offset) is ignored for calculations
+        if (this.options.progressCalculationRelative){
+            progress = (this.value-this.startValue)/(this.total-this.startValue);
+        }
+
+        // handle NaN Errors caused by total=0. Set to complete in this case
+        if (isNaN(progress)){
+            progress = (this.options && this.options.emptyOnZero) ? 0.0 : 1.0;
+        }
+
+        // limiter
+        progress = Math.min(Math.max(progress, 0.0), 1.0);
+
+        return progress;
+    }
+
+    // update the bar value
+    // increment(delta, payload)
+    // increment(payload)
+    increment(arg0 = 1, arg1 = {}){
+        // increment([payload]) => step=1
+        // handle the use case when `step` is omitted but payload is passed
+        if (typeof arg0 === 'object') {
+            this.update(this.value + 1, arg0);
+        
+        // increment([step=1], [payload={}])
+        }else{
+            this.update(this.value + arg0, arg1);
+        }
+    }
+
+    // get the total (limit) value
+    getTotal(){
+        return this.total;
+    }
+
+    // set the total (limit) value
+    setTotal(total){
+        if (typeof total !== 'undefined' && total >= 0){
+            this.total = total;
+        }
+    }
+
+    // force eta calculation update (long running processes)
+    updateETA(){
+        // add new value; recalculate eta
+        this.eta.update(Date.now(), this.value, this.total);
+    }
+}
+
+
+/***/ }),
+
+/***/ 2013:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const _Terminal = __nccwpck_require__(4411);
+const _BarElement = __nccwpck_require__(3455);
+const _options = __nccwpck_require__(8322);
+const _EventEmitter = __nccwpck_require__(2361);
+
+// Progress-Bar constructor
+module.exports = class MultiBar extends _EventEmitter{
+
+    constructor(options, preset){
+        super();
+
+        // list of bars
+        this.bars = [];
+
+        // parse+store options
+        this.options = _options.parse(options, preset);
+
+        // disable synchronous updates
+        this.options.synchronousUpdate = false;
+
+        // store terminal instance
+        this.terminal = (this.options.terminal) ? this.options.terminal : new _Terminal(this.options.stream);
+
+        // the update timer
+        this.timer = null;
+
+        // progress bar active ?
+        this.isActive = false;
+
+        // update interval
+        this.schedulingRate = (this.terminal.isTTY() ? this.options.throttleTime : this.options.notTTYSchedule);
+
+        // logging output buffer
+        this.loggingBuffer = [];
+
+        // callback used for gracefulExit
+        this.sigintCallback = null;
+    }
+
+    // add a new bar to the stack
+    create(total, startValue, payload, barOptions={}){
+        // create new bar element and merge global options + overrides
+        // use the same global terminal instance for all instances
+        const bar = new _BarElement(Object.assign(
+            {}, 
+
+            // global options
+            this.options, 
+
+            // terminal instance
+            {
+                terminal: this.terminal
+            },
+
+            // overrides
+            barOptions,
+        ));
+
+        // store bar
+        this.bars.push(bar);
+
+        // progress updates are only visible in TTY mode!
+        if (this.options.noTTYOutput === false && this.terminal.isTTY() === false){
+            return bar;
+        }
+
+        // add handler to restore cursor settings (stop the bar) on SIGINT/SIGTERM ?
+        if (this.sigintCallback === null && this.options.gracefulExit){
+            this.sigintCallback = this.stop.bind(this);
+            process.once('SIGINT', this.sigintCallback);
+            process.once('SIGTERM', this.sigintCallback);
+        }
+        
+        // multiprogress already active ?
+        if (!this.isActive){
+            // hide the cursor ?
+            if (this.options.hideCursor === true){
+                this.terminal.cursor(false);
+            }
+
+            // disable line wrapping ?
+            if (this.options.linewrap === false){
+                this.terminal.lineWrapping(false);
+            }
+    
+            // initialize update timer
+            this.timer = setTimeout(this.update.bind(this), this.schedulingRate);
+        }
+
+        // set flag
+        this.isActive = true;
+
+        // start progress bar
+        bar.start(total, startValue, payload);
+
+        // trigger event
+        this.emit('start');
+
+        // return new instance
+        return bar;
+    }
+
+    // remove a bar from the stack
+    remove(bar){
+        // find element
+        const index = this.bars.indexOf(bar);
+
+        // element found ?
+        if (index < 0){
+            return false;
+        }
+
+        // remove element
+        this.bars.splice(index, 1);
+
+        // force update
+        this.update();
+
+        // clear bottom
+        this.terminal.newline();
+        this.terminal.clearBottom();
+
+        return true;
+    }
+
+    // internal update routine
+    update(){
+        // stop timer
+        if (this.timer){
+            clearTimeout(this.timer);
+            this.timer = null;
+        }
+
+        // trigger event
+        this.emit('update-pre');
+        
+        // reset cursor
+        this.terminal.cursorRelativeReset();
+
+        // trigger event
+        this.emit('redraw-pre');
+
+        // content within logging buffer ?
+        if (this.loggingBuffer.length > 0){
+            this.terminal.clearLine();
+
+            // flush logging buffer and write content to terminal
+            while (this.loggingBuffer.length > 0){
+                this.terminal.write(this.loggingBuffer.shift(), true);
+            }
+        }
+
+        // update each bar
+        for (let i=0; i< this.bars.length; i++){
+            // add new line ?
+            if (i > 0){
+                this.terminal.newline();
+            }
+
+            // render
+            this.bars[i].render();
+        }
+
+        // trigger event
+        this.emit('redraw-post');
+
+        // add new line in notty mode!
+        if (this.options.noTTYOutput && this.terminal.isTTY() === false){
+            this.terminal.newline();
+            this.terminal.newline();
+        }
+
+        // next update
+        this.timer = setTimeout(this.update.bind(this), this.schedulingRate);
+
+        // trigger event
+        this.emit('update-post');
+
+        // stop if stopOnComplete and all bars stopped
+        if (this.options.stopOnComplete && !this.bars.find(bar => bar.isActive)) {
+            this.stop();
+        }
+    }
+
+    stop(){
+
+        // stop timer
+        clearTimeout(this.timer);
+        this.timer = null;
+
+        // remove sigint listener
+        if (this.sigintCallback){
+            process.removeListener('SIGINT', this.sigintCallback);
+            process.removeListener('SIGTERM', this.sigintCallback);
+            this.sigintCallback = null;
+        }
+
+        // set flag
+        this.isActive = false;
+
+        // cursor hidden ?
+        if (this.options.hideCursor === true){
+            this.terminal.cursor(true);
+        }
+
+        // re-enable line wrpaping ?
+        if (this.options.linewrap === false){
+            this.terminal.lineWrapping(true);
+        }
+
+        // reset cursor
+        this.terminal.cursorRelativeReset();
+
+        // trigger event
+        this.emit('stop-pre-clear');
+
+        // clear line on complete ?
+        if (this.options.clearOnComplete){
+            // clear all bars
+            this.terminal.clearBottom();
+            
+        // or show final progress ?
+        }else{
+            // update each bar
+            for (let i=0; i< this.bars.length; i++){
+                // add new line ?
+                if (i > 0){
+                    this.terminal.newline();
+                }
+
+                // trigger final rendering
+                this.bars[i].render();
+
+                // stop
+                this.bars[i].stop();
+            }
+
+            // new line on complete
+            this.terminal.newline();
+        }
+
+        // trigger event
+        this.emit('stop');
+    }
+
+    log(s){
+        // push content into logging buffer
+        this.loggingBuffer.push(s);
+    }
+}
+
+
+/***/ }),
+
+/***/ 8322:
+/***/ ((module) => {
+
+// utility to merge defaults
+function mergeOption(v, defaultValue){
+    if (typeof v === 'undefined' || v === null){
+        return defaultValue;
+    }else{
+        return v;
+    }
+}
+
+module.exports = {
+    // set global options
+    parse: function parse(rawOptions, preset){
+
+        // options storage
+        const options = {};
+
+        // merge preset
+        const opt = Object.assign({}, preset, rawOptions);
+
+        // the max update rate in fps (redraw will only triggered on value change)
+        options.throttleTime = 1000 / (mergeOption(opt.fps, 10));
+
+        // the output stream to write on
+        options.stream = mergeOption(opt.stream, process.stderr);
+
+        // external terminal provided ?
+        options.terminal = mergeOption(opt.terminal, null);
+
+        // clear on finish ?
+        options.clearOnComplete = mergeOption(opt.clearOnComplete, false);
+
+        // stop on finish ?
+        options.stopOnComplete = mergeOption(opt.stopOnComplete, false);
+
+        // size of the progressbar in chars
+        options.barsize = mergeOption(opt.barsize, 40);
+
+        // position of the progress bar - 'left' (default), 'right' or 'center'
+        options.align = mergeOption(opt.align, 'left');
+
+        // hide the cursor ?
+        options.hideCursor = mergeOption(opt.hideCursor, false);
+
+        // disable linewrapping ?
+        options.linewrap = mergeOption(opt.linewrap, false);
+
+        // glue sequence (control chars) between bar elements ?
+        options.barGlue = mergeOption(opt.barGlue, '');
+
+        // bar chars
+        options.barCompleteChar = mergeOption(opt.barCompleteChar, '=');
+        options.barIncompleteChar = mergeOption(opt.barIncompleteChar, '-');
+
+        // the bar format
+        options.format = mergeOption(opt.format, 'progress [{bar}] {percentage}% | ETA: {eta}s | {value}/{total}');
+
+        // external time-format provided ?
+        options.formatTime = mergeOption(opt.formatTime, null);
+
+        // external value-format provided ?
+        options.formatValue = mergeOption(opt.formatValue, null);
+
+        // external bar-format provided ?
+        options.formatBar = mergeOption(opt.formatBar, null);
+
+        // the number of results to average ETA over
+        options.etaBufferLength = mergeOption(opt.etaBuffer, 10);
+
+        // automatic eta updates based on fps
+        options.etaAsynchronousUpdate = mergeOption(opt.etaAsynchronousUpdate, false);
+
+        // progress calculation relative to start value ? default start at 0
+        options.progressCalculationRelative = mergeOption(opt.progressCalculationRelative, false);
+
+        // allow synchronous updates ?
+        options.synchronousUpdate = mergeOption(opt.synchronousUpdate, true);
+
+        // notty mode
+        options.noTTYOutput = mergeOption(opt.noTTYOutput, false);
+
+        // schedule - 2s
+        options.notTTYSchedule = mergeOption(opt.notTTYSchedule, 2000);
+        
+        // emptyOnZero - false
+        options.emptyOnZero = mergeOption(opt.emptyOnZero, false);
+
+        // force bar redraw even if progress did not change
+        options.forceRedraw = mergeOption(opt.forceRedraw, false);
+
+        // automated padding to fixed width ?
+        options.autopadding = mergeOption(opt.autopadding, false);
+
+        // stop bar on SIGINT/SIGTERM to restore cursor settings ?
+        options.gracefulExit = mergeOption(opt.gracefulExit, false);
+
+        return options;
+    },
+
+    // derived options: instance specific, has to be created for every bar element
+    assignDerivedOptions: function assignDerivedOptions(options){
+        // pre-render bar strings (performance)
+        options.barCompleteString = options.barCompleteChar.repeat(options.barsize + 1);
+        options.barIncompleteString = options.barIncompleteChar.repeat(options.barsize + 1);
+
+        // autopadding character - empty in case autopadding is disabled
+        options.autopaddingChar = options.autopadding ? mergeOption(options.autopaddingChar, '   ') : '';
+
+        return options;
+    }
+};
+
+/***/ }),
+
+/***/ 7561:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const _GenericBar = __nccwpck_require__(3455);
+const _options = __nccwpck_require__(8322);
+
+// Progress-Bar constructor
+module.exports = class SingleBar extends _GenericBar{
+
+    constructor(options, preset){
+        super(_options.parse(options, preset));
+
+        // the update timer
+        this.timer = null;
+
+        // disable synchronous updates in notty mode
+        if (this.options.noTTYOutput && this.terminal.isTTY() === false){
+            this.options.synchronousUpdate = false;
+        }
+
+        // update interval
+        this.schedulingRate = (this.terminal.isTTY() ? this.options.throttleTime : this.options.notTTYSchedule);
+
+        // callback used for gracefulExit
+        this.sigintCallback = null;
+    }
+
+    // internal render function
+    render(){
+        // stop timer
+        if (this.timer){
+            clearTimeout(this.timer);
+            this.timer = null;
+        }
+
+        // run internal rendering
+        super.render();
+
+        // add new line in notty mode!
+        if (this.options.noTTYOutput && this.terminal.isTTY() === false){
+            this.terminal.newline();
+        }
+
+        // next update
+        this.timer = setTimeout(this.render.bind(this), this.schedulingRate);
+    }
+
+    update(current, payload){
+        // timer inactive ?
+        if (!this.timer) {
+            return;
+        }
+
+        super.update(current, payload);
+
+        // trigger synchronous update ?
+        // check for throttle time 
+        if (this.options.synchronousUpdate && (this.lastRedraw + this.options.throttleTime*2) < Date.now()){
+            // force update
+            this.render();
+        }
+    }
+
+    // start the progress bar
+    start(total, startValue, payload){
+        // progress updates are only visible in TTY mode!
+        if (this.options.noTTYOutput === false && this.terminal.isTTY() === false){
+            return;
+        }
+
+        // add handler to restore cursor settings (stop the bar) on SIGINT/SIGTERM ?
+        if (this.sigintCallback === null && this.options.gracefulExit){
+            this.sigintCallback = this.stop.bind(this);
+            process.once('SIGINT', this.sigintCallback);
+            process.once('SIGTERM', this.sigintCallback);
+        }
+
+        // save current cursor settings
+        this.terminal.cursorSave();
+
+        // hide the cursor ?
+        if (this.options.hideCursor === true){
+            this.terminal.cursor(false);
+        }
+
+        // disable line wrapping ?
+        if (this.options.linewrap === false){
+            this.terminal.lineWrapping(false);
+        }
+
+        // initialize bar
+        super.start(total, startValue, payload);
+
+        // redraw on start!
+        this.render();
+    }
+
+    // stop the bar
+    stop(){
+        // timer inactive ?
+        if (!this.timer) {
+            return;
+        }
+        
+        // remove sigint listener
+        if (this.sigintCallback){
+            process.removeListener('SIGINT', this.sigintCallback);
+            process.removeListener('SIGTERM', this.sigintCallback);
+            this.sigintCallback = null;
+        }
+
+        // trigger final rendering
+        this.render();
+
+        // restore state
+        super.stop();
+
+        // stop timer
+        clearTimeout(this.timer);
+        this.timer = null;
+
+        // cursor hidden ?
+        if (this.options.hideCursor === true){
+            this.terminal.cursor(true);
+        }
+
+        // re-enable line wrapping ?
+        if (this.options.linewrap === false){
+            this.terminal.lineWrapping(true);
+        }
+
+        // restore cursor on complete (position + settings)
+        this.terminal.cursorRestore();
+
+        // clear line on complete ?
+        if (this.options.clearOnComplete){
+            this.terminal.cursorTo(0, null);
+            this.terminal.clearLine();
+        }else{
+            // new line on complete
+            this.terminal.newline();
+        }
+    }
+}
+
+/***/ }),
+
+/***/ 4411:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const _readline = __nccwpck_require__(4521);
+
+// low-level terminal interactions
+class Terminal{
+
+    constructor(outputStream){
+        this.stream = outputStream;
+
+        // default: line wrapping enabled
+        this.linewrap = true;
+
+        // current, relative y position
+        this.dy = 0;
+    }
+
+    // save cursor position + settings
+    cursorSave(){
+        if (!this.stream.isTTY){
+            return;
+        }
+
+        // save position
+        this.stream.write('\x1B7');
+    }
+
+    // restore last cursor position + settings
+    cursorRestore(){
+        if (!this.stream.isTTY){
+            return;
+        }
+
+        // restore cursor
+        this.stream.write('\x1B8');
+    }
+
+    // show/hide cursor
+    cursor(enabled){
+        if (!this.stream.isTTY){
+            return;
+        }
+
+        if (enabled){
+            this.stream.write('\x1B[?25h');
+        }else{
+            this.stream.write('\x1B[?25l');
+        }
+    }
+
+    // change cursor positionn
+    cursorTo(x=null, y=null){
+        if (!this.stream.isTTY){
+            return;
+        }
+
+        // move cursor absolute
+        _readline.cursorTo(this.stream, x, y);
+    }
+
+    // change relative cursor position
+    cursorRelative(dx=null, dy=null){
+        if (!this.stream.isTTY){
+            return;
+        }
+
+        // store current position
+        this.dy = this.dy + dy;
+        
+        // move cursor relative
+        _readline.moveCursor(this.stream, dx, dy);
+    }
+
+    // relative reset
+    cursorRelativeReset(){
+        if (!this.stream.isTTY){
+            return;
+        }
+
+        // move cursor to initial line
+        _readline.moveCursor(this.stream, 0, -this.dy);
+
+        // first char
+        _readline.cursorTo(this.stream, 0, null);
+
+        // reset counter
+        this.dy = 0;
+    }
+
+    // clear to the right from cursor
+    clearRight(){
+        if (!this.stream.isTTY){
+            return;
+        }
+
+        _readline.clearLine(this.stream, 1);
+    }
+
+    // clear the full line
+    clearLine(){
+        if (!this.stream.isTTY){
+            return;
+        }
+
+        _readline.clearLine(this.stream, 0);
+    }
+
+    // clear everyting beyond the current line
+    clearBottom(){
+        if (!this.stream.isTTY){
+            return;
+        }
+
+        _readline.clearScreenDown(this.stream);
+    }
+
+    // add new line; increment counter
+    newline(){
+        this.stream.write('\n');
+        this.dy++;
+    }
+
+    // write content to output stream
+    // @TODO use string-width to strip length
+    write(s, rawWrite=false){
+        // line wrapping enabled ? trim output
+        // this is just a fallback mechanism in case user enabled line-wrapping via options or set it to auto
+        if (this.linewrap === true && rawWrite === false){
+            this.stream.write(s.substr(0, this.getWidth()));
+
+        // standard behaviour with disabled linewrapping
+        }else{
+            this.stream.write(s);
+        }
+    }
+
+    // control line wrapping
+    lineWrapping(enabled){
+        if (!this.stream.isTTY){
+            return;
+        }
+
+        // store state
+        this.linewrap = enabled;
+        if (enabled){
+            this.stream.write('\x1B[?7h');
+        }else{
+            this.stream.write('\x1B[?7l');
+        }
+    }
+
+    // tty environment ?
+    isTTY(){
+        return (this.stream.isTTY === true);
+    }
+
+    // get terminal width
+    getWidth(){
+        // set max width to 80 in tty-mode and 200 in notty-mode
+        return this.stream.columns || (this.stream.isTTY ? 80 : 200);
+    }
+}
+
+module.exports = Terminal;
+
+
+/***/ }),
+
+/***/ 5040:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const _legacy = __nccwpck_require__(2594);
+const _shades_classic = __nccwpck_require__(8373);
+const _shades_grey = __nccwpck_require__(1106);
+const _rect = __nccwpck_require__(441);
+
+module.exports = {
+    legacy: _legacy,
+    shades_classic: _shades_classic,
+    shades_grey: _shades_grey,
+    rect: _rect
+};
+
+/***/ }),
+
+/***/ 2594:
+/***/ ((module) => {
+
+// cli-progress legacy style as of 1.x
+module.exports = {
+    format: 'progress [{bar}] {percentage}% | ETA: {eta}s | {value}/{total}',
+    barCompleteChar: '=',
+    barIncompleteChar: '-'
+};
+
+/***/ }),
+
+/***/ 441:
+/***/ ((module) => {
+
+module.exports = {
+    format: ' {bar}\u25A0 {percentage}% | ETA: {eta}s | {value}/{total}',
+    barCompleteChar: '\u25A0',
+    barIncompleteChar: ' '
+};
+
+/***/ }),
+
+/***/ 8373:
+/***/ ((module) => {
+
+// cli-progress legacy style as of 1.x
+module.exports = {
+    format: ' {bar} {percentage}% | ETA: {eta}s | {value}/{total}',
+    barCompleteChar: '\u2588',
+    barIncompleteChar: '\u2591'
+};
+
+/***/ }),
+
+/***/ 1106:
+/***/ ((module) => {
+
+
+// cli-progress legacy style as of 1.x
+module.exports = {
+    format: ' \u001b[90m{bar}\u001b[0m {percentage}% | ETA: {eta}s | {value}/{total}',
+    barCompleteChar: '\u2588',
+    barIncompleteChar: '\u2591'
+};
+
+/***/ }),
+
 /***/ 5107:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -17107,6 +18398,20 @@ exports.Deprecation = Deprecation;
 
 /***/ }),
 
+/***/ 8212:
+/***/ ((module) => {
+
+"use strict";
+
+
+module.exports = function () {
+  // https://mths.be/emoji
+  return /\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62(?:\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67|\uDB40\uDC73\uDB40\uDC63\uDB40\uDC74|\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73)\uDB40\uDC7F|\uD83D\uDC68(?:\uD83C\uDFFC\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68\uD83C\uDFFB|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFE])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFE\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFD])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFC])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D)?\uD83D\uDC68|(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|(?:\uD83D[\uDC68\uDC69])\u200D(?:\uD83D[\uDC66\uDC67])|[\u2695\u2696\u2708]\uFE0F|\uD83D[\uDC66\uDC67]|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|(?:\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708])\uFE0F|\uD83C\uDFFB\u200D(?:\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C[\uDFFB-\uDFFF])|(?:\uD83E\uDDD1\uD83C\uDFFB\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFC\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)\uD83C\uDFFB|\uD83E\uDDD1(?:\uD83C\uDFFF\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1(?:\uD83C[\uDFFB-\uDFFF])|\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1)|(?:\uD83E\uDDD1\uD83C\uDFFE\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFF\u200D\uD83E\uDD1D\u200D(?:\uD83D[\uDC68\uDC69]))(?:\uD83C[\uDFFB-\uDFFE])|(?:\uD83E\uDDD1\uD83C\uDFFC\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFD\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)(?:\uD83C[\uDFFB\uDFFC])|\uD83D\uDC69(?:\uD83C\uDFFE\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB-\uDFFD\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFC\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFD-\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFB\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFC-\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFD\u200D(?:\uD83E\uDD1D\u200D\uD83D\uDC68(?:\uD83C[\uDFFB\uDFFC\uDFFE\uDFFF])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\u200D(?:\u2764\uFE0F\u200D(?:\uD83D\uDC8B\u200D(?:\uD83D[\uDC68\uDC69])|\uD83D[\uDC68\uDC69])|\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD])|\uD83C\uDFFF\u200D(?:\uD83C[\uDF3E\uDF73\uDF93\uDFA4\uDFA8\uDFEB\uDFED]|\uD83D[\uDCBB\uDCBC\uDD27\uDD2C\uDE80\uDE92]|\uD83E[\uDDAF-\uDDB3\uDDBC\uDDBD]))|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67]))|(?:\uD83E\uDDD1\uD83C\uDFFD\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1|\uD83D\uDC69\uD83C\uDFFE\u200D\uD83E\uDD1D\u200D\uD83D\uDC69)(?:\uD83C[\uDFFB-\uDFFD])|\uD83D\uDC69\u200D\uD83D\uDC66\u200D\uD83D\uDC66|\uD83D\uDC69\u200D\uD83D\uDC69\u200D(?:\uD83D[\uDC66\uDC67])|(?:\uD83D\uDC41\uFE0F\u200D\uD83D\uDDE8|\uD83D\uDC69(?:\uD83C\uDFFF\u200D[\u2695\u2696\u2708]|\uD83C\uDFFE\u200D[\u2695\u2696\u2708]|\uD83C\uDFFC\u200D[\u2695\u2696\u2708]|\uD83C\uDFFB\u200D[\u2695\u2696\u2708]|\uD83C\uDFFD\u200D[\u2695\u2696\u2708]|\u200D[\u2695\u2696\u2708])|(?:(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)\uFE0F|\uD83D\uDC6F|\uD83E[\uDD3C\uDDDE\uDDDF])\u200D[\u2640\u2642]|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uD83C[\uDFFB-\uDFFF])\u200D[\u2640\u2642]|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD6-\uDDDD])(?:(?:\uD83C[\uDFFB-\uDFFF])\u200D[\u2640\u2642]|\u200D[\u2640\u2642])|\uD83C\uDFF4\u200D\u2620)\uFE0F|\uD83D\uDC69\u200D\uD83D\uDC67\u200D(?:\uD83D[\uDC66\uDC67])|\uD83C\uDFF3\uFE0F\u200D\uD83C\uDF08|\uD83D\uDC15\u200D\uD83E\uDDBA|\uD83D\uDC69\u200D\uD83D\uDC66|\uD83D\uDC69\u200D\uD83D\uDC67|\uD83C\uDDFD\uD83C\uDDF0|\uD83C\uDDF4\uD83C\uDDF2|\uD83C\uDDF6\uD83C\uDDE6|[#\*0-9]\uFE0F\u20E3|\uD83C\uDDE7(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEF\uDDF1-\uDDF4\uDDF6-\uDDF9\uDDFB\uDDFC\uDDFE\uDDFF])|\uD83C\uDDF9(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDED\uDDEF-\uDDF4\uDDF7\uDDF9\uDDFB\uDDFC\uDDFF])|\uD83C\uDDEA(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDED\uDDF7-\uDDFA])|\uD83E\uDDD1(?:\uD83C[\uDFFB-\uDFFF])|\uD83C\uDDF7(?:\uD83C[\uDDEA\uDDF4\uDDF8\uDDFA\uDDFC])|\uD83D\uDC69(?:\uD83C[\uDFFB-\uDFFF])|\uD83C\uDDF2(?:\uD83C[\uDDE6\uDDE8-\uDDED\uDDF0-\uDDFF])|\uD83C\uDDE6(?:\uD83C[\uDDE8-\uDDEC\uDDEE\uDDF1\uDDF2\uDDF4\uDDF6-\uDDFA\uDDFC\uDDFD\uDDFF])|\uD83C\uDDF0(?:\uD83C[\uDDEA\uDDEC-\uDDEE\uDDF2\uDDF3\uDDF5\uDDF7\uDDFC\uDDFE\uDDFF])|\uD83C\uDDED(?:\uD83C[\uDDF0\uDDF2\uDDF3\uDDF7\uDDF9\uDDFA])|\uD83C\uDDE9(?:\uD83C[\uDDEA\uDDEC\uDDEF\uDDF0\uDDF2\uDDF4\uDDFF])|\uD83C\uDDFE(?:\uD83C[\uDDEA\uDDF9])|\uD83C\uDDEC(?:\uD83C[\uDDE6\uDDE7\uDDE9-\uDDEE\uDDF1-\uDDF3\uDDF5-\uDDFA\uDDFC\uDDFE])|\uD83C\uDDF8(?:\uD83C[\uDDE6-\uDDEA\uDDEC-\uDDF4\uDDF7-\uDDF9\uDDFB\uDDFD-\uDDFF])|\uD83C\uDDEB(?:\uD83C[\uDDEE-\uDDF0\uDDF2\uDDF4\uDDF7])|\uD83C\uDDF5(?:\uD83C[\uDDE6\uDDEA-\uDDED\uDDF0-\uDDF3\uDDF7-\uDDF9\uDDFC\uDDFE])|\uD83C\uDDFB(?:\uD83C[\uDDE6\uDDE8\uDDEA\uDDEC\uDDEE\uDDF3\uDDFA])|\uD83C\uDDF3(?:\uD83C[\uDDE6\uDDE8\uDDEA-\uDDEC\uDDEE\uDDF1\uDDF4\uDDF5\uDDF7\uDDFA\uDDFF])|\uD83C\uDDE8(?:\uD83C[\uDDE6\uDDE8\uDDE9\uDDEB-\uDDEE\uDDF0-\uDDF5\uDDF7\uDDFA-\uDDFF])|\uD83C\uDDF1(?:\uD83C[\uDDE6-\uDDE8\uDDEE\uDDF0\uDDF7-\uDDFB\uDDFE])|\uD83C\uDDFF(?:\uD83C[\uDDE6\uDDF2\uDDFC])|\uD83C\uDDFC(?:\uD83C[\uDDEB\uDDF8])|\uD83C\uDDFA(?:\uD83C[\uDDE6\uDDEC\uDDF2\uDDF3\uDDF8\uDDFE\uDDFF])|\uD83C\uDDEE(?:\uD83C[\uDDE8-\uDDEA\uDDF1-\uDDF4\uDDF6-\uDDF9])|\uD83C\uDDEF(?:\uD83C[\uDDEA\uDDF2\uDDF4\uDDF5])|(?:\uD83C[\uDFC3\uDFC4\uDFCA]|\uD83D[\uDC6E\uDC71\uDC73\uDC77\uDC81\uDC82\uDC86\uDC87\uDE45-\uDE47\uDE4B\uDE4D\uDE4E\uDEA3\uDEB4-\uDEB6]|\uD83E[\uDD26\uDD37-\uDD39\uDD3D\uDD3E\uDDB8\uDDB9\uDDCD-\uDDCF\uDDD6-\uDDDD])(?:\uD83C[\uDFFB-\uDFFF])|(?:\u26F9|\uD83C[\uDFCB\uDFCC]|\uD83D\uDD75)(?:\uD83C[\uDFFB-\uDFFF])|(?:[\u261D\u270A-\u270D]|\uD83C[\uDF85\uDFC2\uDFC7]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66\uDC67\uDC6B-\uDC6D\uDC70\uDC72\uDC74-\uDC76\uDC78\uDC7C\uDC83\uDC85\uDCAA\uDD74\uDD7A\uDD90\uDD95\uDD96\uDE4C\uDE4F\uDEC0\uDECC]|\uD83E[\uDD0F\uDD18-\uDD1C\uDD1E\uDD1F\uDD30-\uDD36\uDDB5\uDDB6\uDDBB\uDDD2-\uDDD5])(?:\uD83C[\uDFFB-\uDFFF])|(?:[\u231A\u231B\u23E9-\u23EC\u23F0\u23F3\u25FD\u25FE\u2614\u2615\u2648-\u2653\u267F\u2693\u26A1\u26AA\u26AB\u26BD\u26BE\u26C4\u26C5\u26CE\u26D4\u26EA\u26F2\u26F3\u26F5\u26FA\u26FD\u2705\u270A\u270B\u2728\u274C\u274E\u2753-\u2755\u2757\u2795-\u2797\u27B0\u27BF\u2B1B\u2B1C\u2B50\u2B55]|\uD83C[\uDC04\uDCCF\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE1A\uDE2F\uDE32-\uDE36\uDE38-\uDE3A\uDE50\uDE51\uDF00-\uDF20\uDF2D-\uDF35\uDF37-\uDF7C\uDF7E-\uDF93\uDFA0-\uDFCA\uDFCF-\uDFD3\uDFE0-\uDFF0\uDFF4\uDFF8-\uDFFF]|\uD83D[\uDC00-\uDC3E\uDC40\uDC42-\uDCFC\uDCFF-\uDD3D\uDD4B-\uDD4E\uDD50-\uDD67\uDD7A\uDD95\uDD96\uDDA4\uDDFB-\uDE4F\uDE80-\uDEC5\uDECC\uDED0-\uDED2\uDED5\uDEEB\uDEEC\uDEF4-\uDEFA\uDFE0-\uDFEB]|\uD83E[\uDD0D-\uDD3A\uDD3C-\uDD45\uDD47-\uDD71\uDD73-\uDD76\uDD7A-\uDDA2\uDDA5-\uDDAA\uDDAE-\uDDCA\uDDCD-\uDDFF\uDE70-\uDE73\uDE78-\uDE7A\uDE80-\uDE82\uDE90-\uDE95])|(?:[#\*0-9\xA9\xAE\u203C\u2049\u2122\u2139\u2194-\u2199\u21A9\u21AA\u231A\u231B\u2328\u23CF\u23E9-\u23F3\u23F8-\u23FA\u24C2\u25AA\u25AB\u25B6\u25C0\u25FB-\u25FE\u2600-\u2604\u260E\u2611\u2614\u2615\u2618\u261D\u2620\u2622\u2623\u2626\u262A\u262E\u262F\u2638-\u263A\u2640\u2642\u2648-\u2653\u265F\u2660\u2663\u2665\u2666\u2668\u267B\u267E\u267F\u2692-\u2697\u2699\u269B\u269C\u26A0\u26A1\u26AA\u26AB\u26B0\u26B1\u26BD\u26BE\u26C4\u26C5\u26C8\u26CE\u26CF\u26D1\u26D3\u26D4\u26E9\u26EA\u26F0-\u26F5\u26F7-\u26FA\u26FD\u2702\u2705\u2708-\u270D\u270F\u2712\u2714\u2716\u271D\u2721\u2728\u2733\u2734\u2744\u2747\u274C\u274E\u2753-\u2755\u2757\u2763\u2764\u2795-\u2797\u27A1\u27B0\u27BF\u2934\u2935\u2B05-\u2B07\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299]|\uD83C[\uDC04\uDCCF\uDD70\uDD71\uDD7E\uDD7F\uDD8E\uDD91-\uDD9A\uDDE6-\uDDFF\uDE01\uDE02\uDE1A\uDE2F\uDE32-\uDE3A\uDE50\uDE51\uDF00-\uDF21\uDF24-\uDF93\uDF96\uDF97\uDF99-\uDF9B\uDF9E-\uDFF0\uDFF3-\uDFF5\uDFF7-\uDFFF]|\uD83D[\uDC00-\uDCFD\uDCFF-\uDD3D\uDD49-\uDD4E\uDD50-\uDD67\uDD6F\uDD70\uDD73-\uDD7A\uDD87\uDD8A-\uDD8D\uDD90\uDD95\uDD96\uDDA4\uDDA5\uDDA8\uDDB1\uDDB2\uDDBC\uDDC2-\uDDC4\uDDD1-\uDDD3\uDDDC-\uDDDE\uDDE1\uDDE3\uDDE8\uDDEF\uDDF3\uDDFA-\uDE4F\uDE80-\uDEC5\uDECB-\uDED2\uDED5\uDEE0-\uDEE5\uDEE9\uDEEB\uDEEC\uDEF0\uDEF3-\uDEFA\uDFE0-\uDFEB]|\uD83E[\uDD0D-\uDD3A\uDD3C-\uDD45\uDD47-\uDD71\uDD73-\uDD76\uDD7A-\uDDA2\uDDA5-\uDDAA\uDDAE-\uDDCA\uDDCD-\uDDFF\uDE70-\uDE73\uDE78-\uDE7A\uDE80-\uDE82\uDE90-\uDE95])\uFE0F|(?:[\u261D\u26F9\u270A-\u270D]|\uD83C[\uDF85\uDFC2-\uDFC4\uDFC7\uDFCA-\uDFCC]|\uD83D[\uDC42\uDC43\uDC46-\uDC50\uDC66-\uDC78\uDC7C\uDC81-\uDC83\uDC85-\uDC87\uDC8F\uDC91\uDCAA\uDD74\uDD75\uDD7A\uDD90\uDD95\uDD96\uDE45-\uDE47\uDE4B-\uDE4F\uDEA3\uDEB4-\uDEB6\uDEC0\uDECC]|\uD83E[\uDD0F\uDD18-\uDD1F\uDD26\uDD30-\uDD39\uDD3C-\uDD3E\uDDB5\uDDB6\uDDB8\uDDB9\uDDBB\uDDCD-\uDDCF\uDDD1-\uDDDD])/g;
+};
+
+
+/***/ }),
+
 /***/ 2997:
 /***/ ((module) => {
 
@@ -17574,6 +18879,64 @@ if (typeof Object.create === 'function') {
     }
   }
 }
+
+
+/***/ }),
+
+/***/ 4882:
+/***/ ((module) => {
+
+"use strict";
+/* eslint-disable yoda */
+
+
+const isFullwidthCodePoint = codePoint => {
+	if (Number.isNaN(codePoint)) {
+		return false;
+	}
+
+	// Code points are derived from:
+	// http://www.unix.org/Public/UNIDATA/EastAsianWidth.txt
+	if (
+		codePoint >= 0x1100 && (
+			codePoint <= 0x115F || // Hangul Jamo
+			codePoint === 0x2329 || // LEFT-POINTING ANGLE BRACKET
+			codePoint === 0x232A || // RIGHT-POINTING ANGLE BRACKET
+			// CJK Radicals Supplement .. Enclosed CJK Letters and Months
+			(0x2E80 <= codePoint && codePoint <= 0x3247 && codePoint !== 0x303F) ||
+			// Enclosed CJK Letters and Months .. CJK Unified Ideographs Extension A
+			(0x3250 <= codePoint && codePoint <= 0x4DBF) ||
+			// CJK Unified Ideographs .. Yi Radicals
+			(0x4E00 <= codePoint && codePoint <= 0xA4C6) ||
+			// Hangul Jamo Extended-A
+			(0xA960 <= codePoint && codePoint <= 0xA97C) ||
+			// Hangul Syllables
+			(0xAC00 <= codePoint && codePoint <= 0xD7A3) ||
+			// CJK Compatibility Ideographs
+			(0xF900 <= codePoint && codePoint <= 0xFAFF) ||
+			// Vertical Forms
+			(0xFE10 <= codePoint && codePoint <= 0xFE19) ||
+			// CJK Compatibility Forms .. Small Form Variants
+			(0xFE30 <= codePoint && codePoint <= 0xFE6B) ||
+			// Halfwidth and Fullwidth Forms
+			(0xFF01 <= codePoint && codePoint <= 0xFF60) ||
+			(0xFFE0 <= codePoint && codePoint <= 0xFFE6) ||
+			// Kana Supplement
+			(0x1B000 <= codePoint && codePoint <= 0x1B001) ||
+			// Enclosed Ideographic Supplement
+			(0x1F200 <= codePoint && codePoint <= 0x1F251) ||
+			// CJK Unified Ideographs Extension B .. Tertiary Ideographic Plane
+			(0x20000 <= codePoint && codePoint <= 0x3FFFD)
+		)
+	) {
+		return true;
+	}
+
+	return false;
+};
+
+module.exports = isFullwidthCodePoint;
+module.exports["default"] = isFullwidthCodePoint;
 
 
 /***/ }),
@@ -49288,6 +50651,61 @@ module.exports = {
 
 /***/ }),
 
+/***/ 2577:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+const stripAnsi = __nccwpck_require__(5591);
+const isFullwidthCodePoint = __nccwpck_require__(4882);
+const emojiRegex = __nccwpck_require__(8212);
+
+const stringWidth = string => {
+	if (typeof string !== 'string' || string.length === 0) {
+		return 0;
+	}
+
+	string = stripAnsi(string);
+
+	if (string.length === 0) {
+		return 0;
+	}
+
+	string = string.replace(emojiRegex(), '  ');
+
+	let width = 0;
+
+	for (let i = 0; i < string.length; i++) {
+		const code = string.codePointAt(i);
+
+		// Ignore control characters
+		if (code <= 0x1F || (code >= 0x7F && code <= 0x9F)) {
+			continue;
+		}
+
+		// Ignore combining characters
+		if (code >= 0x300 && code <= 0x36F) {
+			continue;
+		}
+
+		// Surrogates
+		if (code > 0xFFFF) {
+			i++;
+		}
+
+		width += isFullwidthCodePoint(code) ? 2 : 1;
+	}
+
+	return width;
+};
+
+module.exports = stringWidth;
+// TODO: remove this in the next major version
+module.exports["default"] = stringWidth;
+
+
+/***/ }),
+
 /***/ 674:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -49512,6 +50930,18 @@ function base64DetectIncompleteChar(buffer) {
   this.charReceived = buffer.length % 3;
   this.charLength = this.charReceived ? 3 : 0;
 }
+
+
+/***/ }),
+
+/***/ 5591:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+const ansiRegex = __nccwpck_require__(5063);
+
+module.exports = string => typeof string === 'string' ? string.replace(ansiRegex(), '') : string;
 
 
 /***/ }),
@@ -58215,69 +59645,6 @@ XRegExp = XRegExp || (function (undef) {
 
 /***/ }),
 
-/***/ 4351:
-/***/ ((module, __webpack_exports__, __nccwpck_require__) => {
-
-"use strict";
-__nccwpck_require__.a(module, async (__webpack_handle_async_dependencies__, __webpack_async_result__) => { try {
-__nccwpck_require__.r(__webpack_exports__);
-/* harmony import */ var _actions_core__WEBPACK_IMPORTED_MODULE_0__ = __nccwpck_require__(2186);
-/* harmony import */ var _actions_core__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__nccwpck_require__.n(_actions_core__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _actions_github__WEBPACK_IMPORTED_MODULE_1__ = __nccwpck_require__(5438);
-/* harmony import */ var _actions_github__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__nccwpck_require__.n(_actions_github__WEBPACK_IMPORTED_MODULE_1__);
-/* harmony import */ var ftp_deploy__WEBPACK_IMPORTED_MODULE_2__ = __nccwpck_require__(9231);
-/* harmony import */ var ftp_deploy__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__nccwpck_require__.n(ftp_deploy__WEBPACK_IMPORTED_MODULE_2__);
-
-
-
-
-
-const DeployFiles = new FtpDeployer();
-
-(0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)('Deploying...');
-
-
-try {
-    let Deployment = await DeployFiles.deploy({
-        sftp: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('sftp')) || false,
-        host: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('host', { required: true }),
-        port: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('port')) || 21,
-        user: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('username', { required: true }),
-        password: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('password', { required: true }),
-        remoteRoot: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('remote_folder') || './',
-        localRoot: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('local_folder') || 'dist', // __dirname + '/local-folder',
-        deleteRemote: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('cleanup')) || false, // If true, delete ALL existing files at destination before uploading
-        include: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('include')) || ['*', '**/*'], // this would upload everything except dot files
-        exclude: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('exclude')) || ['node_modules/**', 'node_modules/**/.*', '.git/**'], // e.g. exclude sourcemaps, and ALL files in node_modules (including dot files)
-        forcePasv: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('passive')) || true // Passive mode is forced (EPSV command is not sent)
-    })
-} catch (error) {
-    (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.setFailed)(error.message);
-}
-console.log("bef")
-
-
-deploy.on("uploading", function (data) {
-    console.log(data.totalFilesCount); // total file count being transferred
-    console.log(data.transferredFileCount); // number of files transferred
-    console.log(data.filename); // partial path with filename being uploaded
-});
-ftpDeploy.on("uploaded", function (data) {
-    console.log(data); // same data as uploading event
-});
-ftpDeploy.on("log", function (data) {
-    console.log(data); // same data as uploading event
-});
-ftpDeploy.on("upload-error", function (data) {
-    console.log(data.err); // data will also include filename, relativePath, and other goodies
-});
-
-console.log("aft")
-__webpack_async_result__();
-} catch(e) { __webpack_async_result__(e); } }, 1);
-
-/***/ }),
-
 /***/ 4240:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -58517,75 +59884,6 @@ module.exports = JSON.parse('[[[0,44],"disallowed_STD3_valid"],[[45,46],"valid"]
 /******/ 	}
 /******/ 	
 /************************************************************************/
-/******/ 	/* webpack/runtime/async module */
-/******/ 	(() => {
-/******/ 		var webpackQueues = typeof Symbol === "function" ? Symbol("webpack queues") : "__webpack_queues__";
-/******/ 		var webpackExports = typeof Symbol === "function" ? Symbol("webpack exports") : "__webpack_exports__";
-/******/ 		var webpackError = typeof Symbol === "function" ? Symbol("webpack error") : "__webpack_error__";
-/******/ 		var resolveQueue = (queue) => {
-/******/ 			if(queue && !queue.d) {
-/******/ 				queue.d = 1;
-/******/ 				queue.forEach((fn) => (fn.r--));
-/******/ 				queue.forEach((fn) => (fn.r-- ? fn.r++ : fn()));
-/******/ 			}
-/******/ 		}
-/******/ 		var wrapDeps = (deps) => (deps.map((dep) => {
-/******/ 			if(dep !== null && typeof dep === "object") {
-/******/ 				if(dep[webpackQueues]) return dep;
-/******/ 				if(dep.then) {
-/******/ 					var queue = [];
-/******/ 					queue.d = 0;
-/******/ 					dep.then((r) => {
-/******/ 						obj[webpackExports] = r;
-/******/ 						resolveQueue(queue);
-/******/ 					}, (e) => {
-/******/ 						obj[webpackError] = e;
-/******/ 						resolveQueue(queue);
-/******/ 					});
-/******/ 					var obj = {};
-/******/ 					obj[webpackQueues] = (fn) => (fn(queue));
-/******/ 					return obj;
-/******/ 				}
-/******/ 			}
-/******/ 			var ret = {};
-/******/ 			ret[webpackQueues] = x => {};
-/******/ 			ret[webpackExports] = dep;
-/******/ 			return ret;
-/******/ 		}));
-/******/ 		__nccwpck_require__.a = (module, body, hasAwait) => {
-/******/ 			var queue;
-/******/ 			hasAwait && ((queue = []).d = 1);
-/******/ 			var depQueues = new Set();
-/******/ 			var exports = module.exports;
-/******/ 			var currentDeps;
-/******/ 			var outerResolve;
-/******/ 			var reject;
-/******/ 			var promise = new Promise((resolve, rej) => {
-/******/ 				reject = rej;
-/******/ 				outerResolve = resolve;
-/******/ 			});
-/******/ 			promise[webpackExports] = exports;
-/******/ 			promise[webpackQueues] = (fn) => (queue && fn(queue), depQueues.forEach(fn), promise["catch"](x => {}));
-/******/ 			module.exports = promise;
-/******/ 			body((deps) => {
-/******/ 				currentDeps = wrapDeps(deps);
-/******/ 				var fn;
-/******/ 				var getResult = () => (currentDeps.map((d) => {
-/******/ 					if(d[webpackError]) throw d[webpackError];
-/******/ 					return d[webpackExports];
-/******/ 				}))
-/******/ 				var promise = new Promise((resolve) => {
-/******/ 					fn = () => (resolve(getResult));
-/******/ 					fn.r = 0;
-/******/ 					var fnQueue = (q) => (q !== queue && !depQueues.has(q) && (depQueues.add(q), q && !q.d && (fn.r++, q.push(fn))));
-/******/ 					currentDeps.map((dep) => (dep[webpackQueues](fnQueue)));
-/******/ 				});
-/******/ 				return fn.r ? promise : getResult();
-/******/ 			}, (err) => ((err ? reject(promise[webpackError] = err) : outerResolve(exports)), resolveQueue(queue)));
-/******/ 			queue && (queue.d = 0);
-/******/ 		};
-/******/ 	})();
-/******/ 	
 /******/ 	/* webpack/runtime/compat get default export */
 /******/ 	(() => {
 /******/ 		// getDefaultExport function for compatibility with non-harmony modules
@@ -58631,12 +59929,82 @@ module.exports = JSON.parse('[[[0,44],"disallowed_STD3_valid"],[[45,46],"valid"]
 /******/ 	if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = __dirname + "/";
 /******/ 	
 /************************************************************************/
-/******/ 	
-/******/ 	// startup
-/******/ 	// Load entry module and return exports
-/******/ 	// This entry module used 'module' so it can't be inlined
-/******/ 	var __webpack_exports__ = __nccwpck_require__(4351);
-/******/ 	module.exports = __webpack_exports__;
-/******/ 	
+var __webpack_exports__ = {};
+// This entry need to be wrapped in an IIFE because it need to be in strict mode.
+(() => {
+"use strict";
+__nccwpck_require__.r(__webpack_exports__);
+/* harmony import */ var _actions_core__WEBPACK_IMPORTED_MODULE_0__ = __nccwpck_require__(2186);
+/* harmony import */ var _actions_core__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__nccwpck_require__.n(_actions_core__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _actions_github__WEBPACK_IMPORTED_MODULE_1__ = __nccwpck_require__(5438);
+/* harmony import */ var _actions_github__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__nccwpck_require__.n(_actions_github__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var ftp_deploy__WEBPACK_IMPORTED_MODULE_2__ = __nccwpck_require__(9231);
+/* harmony import */ var ftp_deploy__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__nccwpck_require__.n(ftp_deploy__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var cli_progress__WEBPACK_IMPORTED_MODULE_3__ = __nccwpck_require__(7348);
+/* harmony import */ var cli_progress__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__nccwpck_require__.n(cli_progress__WEBPACK_IMPORTED_MODULE_3__);
+
+
+
+
+
+
+const Deployment = new (ftp_deploy__WEBPACK_IMPORTED_MODULE_2___default())();
+
+(0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)('Deploying...');
+
+async function generateProgressBar(progress) {
+    const completed = Math.round(50 * progress); // Number of completed characters
+    const remaining = 50 - completed; // Number of remaining characters
+  
+    const progressBar = '='.repeat(completed) + '>'.repeat(progress > 0 && progress < 1 ? 1 : 0) + ' '.repeat(remaining); // Generate the progress bar string
+    return progressBar;
+
+}
+try {
+    let progress = 0
+    Deployment.deploy({
+        sftp: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('sftp')) || false,
+        host: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('host', { required: true }),
+        port: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('port')) || 21,
+        user: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('username', { required: true }),
+        password: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('password', { required: true }),
+        remoteRoot: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('remote_folder') || './',
+        localRoot: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('local_folder') || 'dist', // __dirname + '/local-folder',
+        deleteRemote: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('delete_remote')) || false, // If true, delete ALL existing files at destination before uploading
+        include: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('include')) || ['*', '**/*'], // this would upload everything except dot files
+        exclude: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('exclude')) || ['node_modules/**', 'node_modules/**/.*', '.git/**'], // e.g. exclude sourcemaps, and ALL files in node_modules (including dot files)
+        forcePasv: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('passive')) || true // Passive mode is forced (EPSV command is not sent)
+    })
+
+    /*Deployment.on("uploading", function (data) {
+    //if (bar1.value === 0) bar1.start(data.totalFilesCount, 0);
+    bar1.update(data.transferredFileCount);
+    });*/
+    Deployment.on("uploaded", async function (data) {
+        console.log(data.totalFilesCount,data.transferredFileCount,data.filename,progress)
+        progress += 1 / data.totalFilesCount
+        const progressBar = await generateProgressBar(progress);
+        const procentage = Math.round((data.transferredFileCount / data.totalFilesCount) * 100)
+        console.log(`File: ${data.filename} [${progressBar}] ${procentage}%`)
+        if (data.transferredFileCount === data.totalFilesCount) {
+            console.log("S/FTP Upload has been done!")
+        }
+    });
+    Deployment.on("upload-error", function (data) {
+        console.log(data.err); // data will also include filename, relativePath, and other goodies
+    });
+    console.log("xd")
+} catch (error) {
+    (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.setFailed)(error.message);
+}
+console.log("bef")
+
+
+
+
+console.log("aft")
+})();
+
+module.exports = __webpack_exports__;
 /******/ })()
 ;
