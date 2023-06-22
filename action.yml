@@ -28,7 +28,7 @@ inputs:
     description: 'The remote folder location of your FTP server'
   local_folder:
     required: false
-    default: ./
+    default: dist
     description: 'The local folder to upload from'
   delete_remote:
     required: false
