@@ -15,7 +15,7 @@ const Deployment = new FtpDeployer();
 let progress = 0
 
 Deployment.deploy({
-    sftp: JSON.parse(getInput('sftp')) || false,
+    sftp: JSON.parse(getInput('sftp')) || true,
     host: getInput('host', { required: true }),
     port: JSON.parse(getInput('port')) || 21,
     user: getInput('username', { required: true }),

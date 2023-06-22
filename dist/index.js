@@ -51584,7 +51584,7 @@ const Deployment = new (ftp_deploy__WEBPACK_IMPORTED_MODULE_1___default())();
 let progress = 0
 
 Deployment.deploy({
-    sftp: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('sftp')) || false,
+    sftp: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('sftp')) || true,
     host: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('host', { required: true }),
     port: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('port')) || 21,
     user: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('username', { required: true }),
