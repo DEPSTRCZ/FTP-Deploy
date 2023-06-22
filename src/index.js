@@ -39,6 +39,6 @@ Deployment.on("uploaded", async function (data) {
     info(`File: ${data.filename} \n\x1b[34m[${progressBar}] ${procentage}%\x1b[0m`)
 
     if (data.transferredFileCount === data.totalFilesCount) {
-        info("\x1b[32mS/\n\nFTP file deployment completed!\x1b[0m")
+        info("\n\n\x1b[32mS/FTP file deployment completed!\x1b[0m")
     }
 });

@@ -51608,7 +51608,7 @@ Deployment.on("uploaded", async function (data) {
     ;(0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`File: ${data.filename} \n\x1b[34m[${progressBar}] ${procentage}%\x1b[0m`)
 
     if (data.transferredFileCount === data.totalFilesCount) {
-        (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)("\x1b[32mS/\n\nFTP file deployment completed!\x1b[0m")
+        (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)("\n\n\x1b[32mS/FTP file deployment completed!\x1b[0m")
     }
 });
 
