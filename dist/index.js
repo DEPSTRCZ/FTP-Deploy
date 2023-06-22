@@ -51572,7 +51572,6 @@ __nccwpck_require__.r(__webpack_exports__);
 
 
 
-
 (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)('\x1b[33mDeploying...');
 async function generateProgressBar(progress) {
     const completed = Math.round(50 * progress); 
@@ -51591,13 +51590,14 @@ Deployment.deploy({
     user: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('username', { required: true }),
     password: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('password', { required: true }),
     remoteRoot: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('remote_folder') || './',
-    localRoot: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('local_folder') || 'dist', // __dirname + '/local-folder',
-    deleteRemote: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('delete_remote')) || false, // If true, delete ALL existing files at destination before uploading
-    include: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('include')) || ['*', '**/*'], // this would upload everything except dot files
-    exclude: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('exclude')) || ['node_modules/**', 'node_modules/**/.*', '.git/**'], // e.g. exclude sourcemaps, and ALL files in node_modules (including dot files)
-    forcePasv: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('passive')) || true // Passive mode is forced (EPSV command is not sent)
-}).catch((err) => {
-    ;(0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.setFailed)(`S/FTP file deployment failed!\n\x1b[31m${err.message}\x1b[0m`);
+    localRoot: (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('local_folder') || 'dist', 
+    deleteRemote: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('delete_remote')) || false, 
+    include: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('include')) || ['*', '**/*'], 
+    exclude: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('exclude')) || ['node_modules/**', 'node_modules/**/.*', '.git/**'], 
+    forcePasv: JSON.parse((0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)('passive')) || true 
+
+}).catch(async (error) => {
+    ;(0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.setFailed)(`S/FTP file deployment failed!\n\x1b[31m${error.message}\x1b[0m`);
 });
 
 Deployment.on("uploaded", async function (data) {
@@ -51612,9 +51612,6 @@ Deployment.on("uploaded", async function (data) {
     }
 });
 
-Deployment.on("upload-error", function (data) {
-    (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.setFailed)("There has been an error while uploading! \nFile: ${data.filename}\nError: ${data.err}")
-});
 })();
 
 module.exports = __webpack_exports__;

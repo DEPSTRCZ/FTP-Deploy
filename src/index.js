@@ -1,7 +1,6 @@
 
-import { info, setFailed, getInput, warning,  } from '@actions/core';
+import { info, setFailed, getInput } from '@actions/core';
 import FtpDeployer from "ftp-deploy";
-
 
 
 info('\x1b[33mDeploying...');
@@ -22,13 +21,14 @@ Deployment.deploy({
     user: getInput('username', { required: true }),
     password: getInput('password', { required: true }),
     remoteRoot: getInput('remote_folder') || './',
-    localRoot: getInput('local_folder') || 'dist', // __dirname + '/local-folder',
-    deleteRemote: JSON.parse(getInput('delete_remote')) || false, // If true, delete ALL existing files at destination before uploading
-    include: JSON.parse(getInput('include')) || ['*', '**/*'], // this would upload everything except dot files
-    exclude: JSON.parse(getInput('exclude')) || ['node_modules/**', 'node_modules/**/.*', '.git/**'], // e.g. exclude sourcemaps, and ALL files in node_modules (including dot files)
-    forcePasv: JSON.parse(getInput('passive')) || true // Passive mode is forced (EPSV command is not sent)
-}).catch((err) => {
-    setFailed(`S/FTP file deployment failed!\n\x1b[31m${err.message}\x1b[0m`);
+    localRoot: getInput('local_folder') || 'dist', 
+    deleteRemote: JSON.parse(getInput('delete_remote')) || false, 
+    include: JSON.parse(getInput('include')) || ['*', '**/*'], 
+    exclude: JSON.parse(getInput('exclude')) || ['node_modules/**', 'node_modules/**/.*', '.git/**'], 
+    forcePasv: JSON.parse(getInput('passive')) || true 
+
+}).catch(async (error) => {
+    setFailed(`S/FTP file deployment failed!\n\x1b[31m${error.message}\x1b[0m`);
 });
 
 Deployment.on("uploaded", async function (data) {
@@ -41,8 +41,4 @@ Deployment.on("uploaded", async function (data) {
     if (data.transferredFileCount === data.totalFilesCount) {
         info("\x1b[32mS/\n\nFTP file deployment completed!\x1b[0m")
     }
-});
-
-Deployment.on("upload-error", function (data) {
-    setFailed("There has been an error while uploading! \nFile: ${data.filename}\nError: ${data.err}")
 });
