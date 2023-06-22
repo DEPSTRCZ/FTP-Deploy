@@ -36,11 +36,9 @@ inputs:
     description: 'Delete all files in remote folder'
   include:
     required: false
-    default: '["*", "**/*"]'
     description: 'includes'
   exclude:
     required: false
-    default: '[]'
     description: 'exclude'
   passive:
     required: false
