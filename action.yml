@@ -48,5 +48,4 @@ inputs:
     description: 'passive'
 runs:
   using: 'node16'
-  main: 'index.js'
-  #main: 'dist/index.js' # when public
+  main: 'dist/index.js'
