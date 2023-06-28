@@ -15,15 +15,15 @@ const Deployment = new FtpDeployer();
 let progress = 0
 
 Deployment.deploy({
-    sftp: JSON.parse(getInput('sftp')) || true,
+    sftp: true,
     host: getInput('host', { required: true }),
     port: JSON.parse(getInput('port')) || 21,
     user: getInput('username', { required: true }),
     password: getInput('password', { required: true }),
     remoteRoot: getInput('remote_folder') || './',
     localRoot: getInput('local_folder') || 'dist', 
-    deleteRemote: JSON.parse(getInput('delete_remote')) || false, 
-    include: JSON.parse(getInput('include')) || ['*', '**/*'], 
+    deleteRemote: false, 
+    include: JSON.parse(getInput('include')) || ["**/*"], 
     exclude: JSON.parse(getInput('exclude')) || ['node_modules/**', 'node_modules/**/.*', '.git/**'], 
     forcePasv: JSON.parse(getInput('passive')) || true 
 

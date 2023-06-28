@@ -1,14 +1,10 @@
-name: 'S/FTP Deploy'
+name: 'Pterodactyl SFTP Deploy'
 author: 'DEPSTRCZ'
-description: 'Github action that allows you to deploy yout ptojects through (FTP, SFTP, FTPS)'
+description: 'Github action that allows you to deploy youR project to your Pterodactyl server via SFTP'
 branding:
   color: blue
   icon: upload-cloud
 inputs:
-  sftp:
-    description: 'Use SFTP instead of FTP'
-    required: false
-    default: true
   host:
     description: 'FTP host address Example:  192.168.1.40 or sftp.your-host.com'
     required: true
@@ -22,6 +18,9 @@ inputs:
   password:
     required: true
     description: 'Ftp password'
+  server_id:
+    required: true
+    description: 'Pterodactyl server id'
   remote_folder:
     required: false
     default: ./
