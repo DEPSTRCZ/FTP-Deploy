@@ -1,6 +1,6 @@
-
 import { info, setFailed, getInput } from '@actions/core';
 import FtpDeployer from "ftp-deploy";
+import { DeleteRemote } from './pteroAPI';
 
 
 info('\x1b[33mDeploying...');
@@ -11,6 +11,11 @@ async function generateProgressBar(progress) {
     return progressBar;
 }
 
+if (JSON.parse(getInput('delete_remote'))) {
+    info('\x1b[33mAttemping to delete remote files...');
+    await DeleteRemote(getInput('panel_domain'),getInput('server_id'), getInput('api_key'), getInput('remote_folder') || './')
+    
+}
 const Deployment = new FtpDeployer();
 let progress = 0
 

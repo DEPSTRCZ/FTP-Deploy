@@ -18,6 +18,12 @@ inputs:
   password:
     required: true
     description: 'Ftp password'
+  panel_domain:
+    required: true
+    description: 'Pterodactyl panel domain'
+  api_key:
+    required: true
+    description: 'Pterodactyl api key'
   server_id:
     required: true
     description: 'Pterodactyl server id'
